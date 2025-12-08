@@ -1,0 +1,325 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  password        String
+  name            String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  unitMemberships UserUnit[]
+}
+
+model UserUnit {
+  id        String       @id @default(uuid())
+  userId    String
+  unitId    String
+  role      UserUnitRole @default(MEMBER)
+  isOwner   Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  unit      BudgetUnit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, unitId])
+  @@index([userId])
+  @@index([unitId])
+}
+
+model BudgetUnit {
+  id                    String                 @id @default(uuid())
+  name                  String
+  shortName             String?
+  regon                 String?
+  nip                   String?
+  unitType              UnitType               @default(JEDNOSTKA_BUDZETOWA)
+  defaultDzial          String?
+  defaultRozdzial       String?
+  fiscalYearStart       Int                    @default(1)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  accounts              Account[]
+  budgetClassifications BudgetClassification[]
+  financialPlans        FinancialPlan[]
+  fiscalPeriods         FiscalPeriod[]
+  journals              Journal[]
+  operations            Operation[]
+  reports               Report[]
+  userMemberships       UserUnit[]
+}
+
+model FiscalPeriod {
+  id          String     @id @default(uuid())
+  unitId      String
+  name        String                          // np. "Rok 2024", "2024/2025"
+  startDate   DateTime
+  endDate     DateTime
+  isClosed    Boolean    @default(false)      // Czy okres jest zamknięty
+  isActive    Boolean    @default(false)      // Czy jest aktywnym okresem (tylko jeden na jednostkę)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  unit        BudgetUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  accounts    Account[]
+  operations  Operation[]
+
+  @@unique([unitId, name])
+  @@index([unitId, isActive])
+}
+
+model Journal {
+  id                     String                 @id @default(uuid())
+  unitId                 String
+  name                   String
+  shortName              String
+  type                   JournalType            @default(BUDZET)
+  description            String?
+  requiresClassification Boolean                @default(true)
+  hasOwnAccountPlan      Boolean                @default(true)
+  hasFinancialPlan       Boolean                @default(true)
+  isDefault              Boolean                @default(false)
+  isActive               Boolean                @default(true)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  accounts               Account[]
+  budgetClassifications  BudgetClassification[]
+  unit                   BudgetUnit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  operations             Operation[]
+
+  @@unique([unitId, shortName])
+  @@index([unitId, isActive])
+}
+
+model Account {
+  id                      String         @id @default(uuid())
+  unitId                  String
+  journalId               String
+  fiscalPeriodId          String?                              // Powiązanie z okresem obrachunkowym
+  number                  String
+  name                    String
+  zespol                  Int
+  syntetyczne             String
+  analitpierwsze          String?
+  analitdrugie            String?
+  accountType             AccountType
+  normalBalance           BalanceSide
+  isActive                Boolean        @default(true)
+  description             String?
+  parentId                String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  fiscalPeriod            FiscalPeriod?  @relation(fields: [fiscalPeriodId], references: [id])
+  journal                 Journal        @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  parent                  Account?       @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children                Account[]      @relation("AccountHierarchy")
+  unit                    BudgetUnit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  creditEntries           JournalEntry[] @relation("CreditAccount")
+  debitEntries            JournalEntry[] @relation("DebitAccount")
+  offBalanceCreditEntries JournalEntry[] @relation("OffBalanceCreditAccount")
+  offBalanceDebitEntries  JournalEntry[] @relation("OffBalanceDebitAccount")
+
+  @@unique([unitId, journalId, fiscalPeriodId, number])
+  @@index([unitId, zespol])
+  @@index([journalId])
+  @@index([fiscalPeriodId])
+}
+
+model BudgetClassification {
+  id             String              @id @default(uuid())
+  unitId         String
+  journalId      String
+  dzial          String
+  rozdzial       String
+  paragraf       String
+  podparagraf    String?
+  name           String
+  type           ClassificationType
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  journal        Journal             @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  unit           BudgetUnit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  planItems      FinancialPlanItem[]
+  journalEntries JournalEntry[]
+
+  @@unique([unitId, journalId, dzial, rozdzial, paragraf, podparagraf])
+  @@index([unitId, type])
+  @@index([journalId])
+}
+
+model FinancialPlan {
+  id         String              @id @default(uuid())
+  unitId     String
+  year       Int
+  version    Int                 @default(1)
+  status     PlanStatus          @default(PROJEKT)
+  approvedAt DateTime?
+  approvedBy String?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  unit       BudgetUnit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  items      FinancialPlanItem[]
+
+  @@unique([unitId, year, version])
+}
+
+model FinancialPlanItem {
+  id               String               @id @default(uuid())
+  planId           String
+  classificationId String
+  plannedAmount    Decimal              @db.Decimal(15, 2)
+  createdAt        DateTime             @default(now())
+  classification   BudgetClassification @relation(fields: [classificationId], references: [id])
+  plan             FinancialPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, classificationId])
+}
+
+model Operation {
+  id              String          @id @default(uuid())
+  unitId          String
+  journalId       String
+  fiscalPeriodId  String?                           // Powiązanie z okresem obrachunkowym
+  entryDate       DateTime        @default(now())
+  bookingDate     DateTime?
+  dueDate         DateTime?
+  documentNumber  String
+  documentType    DocumentType
+  description     String
+  contractorName  String?
+  contractorNip   String?
+  totalAmount     Decimal         @db.Decimal(15, 2)
+  status          OperationStatus @default(WPROWADZONE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  entries         JournalEntry[]
+  fiscalPeriod    FiscalPeriod?   @relation(fields: [fiscalPeriodId], references: [id])
+  journal         Journal         @relation(fields: [journalId], references: [id])
+  unit            BudgetUnit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([fiscalPeriodId])
+}
+
+model JournalEntry {
+  id                        String                @id @default(uuid())
+  operationId               String
+  debitAccountId            String
+  creditAccountId           String
+  amount                    Decimal               @db.Decimal(15, 2)
+  offBalanceDebitAccountId  String?
+  offBalanceCreditAccountId String?
+  classificationId          String?
+  description               String?
+  journalNumber             Int?
+  createdAt                 DateTime              @default(now())
+  classification            BudgetClassification? @relation(fields: [classificationId], references: [id])
+  creditAccount             Account               @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  debitAccount              Account               @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  offBalanceCreditAccount   Account?              @relation("OffBalanceCreditAccount", fields: [offBalanceCreditAccountId], references: [id])
+  offBalanceDebitAccount    Account?              @relation("OffBalanceDebitAccount", fields: [offBalanceDebitAccountId], references: [id])
+  operation                 Operation             @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@index([operationId])
+  @@index([debitAccountId])
+  @@index([creditAccountId])
+}
+
+model Report {
+  id          String     @id @default(uuid())
+  unitId      String
+  type        ReportType
+  periodStart DateTime
+  periodEnd   DateTime
+  data        Json
+  generatedAt DateTime   @default(now())
+  unit        BudgetUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId, type])
+}
+
+enum UserUnitRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum UnitType {
+  JEDNOSTKA_BUDZETOWA
+  ZAKLAD_BUDZETOWY
+  ORGAN_BUDZETU
+}
+
+enum JournalType {
+  BUDZET
+  WRD
+  ZFSS
+  INNY
+}
+
+enum AccountType {
+  BILANSOWE_AKTYWNE
+  BILANSOWE_PASYWNE
+  BILANSOWE_AKTYWNO_PASYWNE
+  WYNIKOWE_KOSZTOWE
+  WYNIKOWE_PRZYCHODOWE
+  POZABILANSOWE
+  ROZLICZENIOWE
+}
+
+enum BalanceSide {
+  DEBIT
+  CREDIT
+}
+
+enum ClassificationType {
+  DOCHOD
+  WYDATEK
+  PRZYCHOD
+  ROZCHOD
+}
+
+enum PlanStatus {
+  PROJEKT
+  ZATWIERDZONY
+  ZMIANA
+}
+
+enum DocumentType {
+  FAKTURA_ZAKUP
+  FAKTURA_SPRZEDAZ
+  WYCIAG_BANKOWY
+  RAPORT_KASOWY
+  LISTA_PLAC
+  PK
+  NOTA_KSIEGOWA
+  OT
+  LT
+  INNE
+  BO
+}
+
+enum OperationStatus {
+  WPROWADZONE
+  ZADEKRETOWANE
+  ZAKSIEGOWANE
+  ANULOWANE
+}
+
+enum ReportType {
+  BILANS
+  RZIS
+  ZESTAWIENIE_ZMIAN_FUNDUSZU
+  ZESTAWIENIE_OBROTOW_SALD
+  RB_27S
+  RB_28S
+  RB_34S
+  RB_N
+  RB_Z
+}

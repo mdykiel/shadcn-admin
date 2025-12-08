@@ -21,6 +21,17 @@ import {
   AudioWaveform,
   Command,
   GalleryVerticalEnd,
+  Building2,
+  Calculator,
+  BookOpen,
+  Receipt,
+  ClipboardList,
+  FileBarChart,
+  TrendingUp,
+  DollarSign,
+  Calendar,
+  Archive,
+  CalendarRange,
 } from 'lucide-react'
 import { ClerkLogo } from '@/assets/clerk-logo'
 import { type SidebarData } from '../types'
@@ -93,6 +104,104 @@ export const sidebarData: SidebarData = {
             {
               title: 'User Management',
               url: '/clerk/user-management',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Ustawienia',
+      items: [
+        {
+          title: 'Jednostki budżetowe',
+          url: '/units',
+          icon: Building2,
+        },
+        {
+          title: 'Okresy obrachunkowe',
+          url: '/fiscal-periods',
+          icon: CalendarRange,
+        },
+        {
+          title: 'Dzienniki',
+          url: '/journals',
+          icon: ClipboardList,
+        },
+        {
+          title: 'Plan kont',
+          url: '/accounts',
+          icon: BookOpen,
+        },
+        {
+          title: 'Klasyfikacja budżetowa',
+          url: '/classification',
+          icon: Archive,
+        },
+      ],
+    },
+    {
+      title: 'Planowanie',
+      items: [
+        {
+          title: 'Plany finansowe',
+          url: '/plans',
+          icon: Calendar,
+        },
+        {
+          title: 'Preliminarze',
+          url: '/preliminaries',
+          icon: TrendingUp,
+        },
+      ],
+    },
+    {
+      title: 'Księgowość',
+      items: [
+        {
+          title: 'Dokumenty',
+          url: '/documents',
+          icon: Receipt,
+        },
+        {
+          title: 'Dziennik księgowań',
+          url: '/operations',
+          icon: ClipboardList,
+        },
+        {
+          title: 'Zestawienie obrotów i sald',
+          url: '/reports/trial-balance',
+          icon: Calculator,
+        },
+      ],
+    },
+    {
+      title: 'Realizacja',
+      items: [
+        {
+          title: 'Sprawozdania budżetowe',
+          icon: FileBarChart,
+          items: [
+            {
+              title: 'Rb-27S',
+              url: '/reports/rb27s',
+            },
+            {
+              title: 'Rb-28S',
+              url: '/reports/rb28s',
+            },
+          ],
+        },
+        {
+          title: 'Sprawozdania finansowe',
+          icon: DollarSign,
+          items: [
+            {
+              title: 'Bilans',
+              url: '/reports/balance-sheet',
+            },
+            {
+              title: 'Rachunek zysków i strat',
+              url: '/reports/income-statement',
             },
           ],
         },

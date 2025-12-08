@@ -1,119 +1,161 @@
-# Shadcn Admin Dashboard
+# Budzeto - Asystent Księgowy Budżetówki
 
-Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and accessibility in mind.
+Aplikacja webowa do nauki i praktyki księgowości w jednostkach sektora finansów publicznych. Umożliwia użytkownikom tworzenie wirtualnych jednostek budżetowych, definiowanie planów kont, klasyfikacji budżetowej, rejestrowanie operacji gospodarczych i generowanie sprawozdań.
 
-![alt text](public/images/shadcn-admin.png)
+## 📋 Funkcjonalności
 
-[![Sponsored by Clerk](https://img.shields.io/badge/Sponsored%20by-Clerk-5b6ee1?logo=clerk)](https://go.clerk.com/GttUAaK)
+### Zarządzanie jednostkami
+- Tworzenie i zarządzanie jednostkami budżetowymi (JST, jednostki budżetowe, zakłady budżetowe)
+- Obsługa wielu jednostek na jednym koncie użytkownika
+- Przełączanie między jednostkami
 
-I've been creating dashboard UIs at work and for my personal projects. I always wanted to make a reusable collection of dashboard UI for future projects; and here it is now. While I've created a few custom components, some of the code is directly adapted from ShadcnUI examples.
+### Plan kont księgowych
+- **Wzorcowe plany kont** zgodne z Rozporządzeniem Ministra Finansów (Dz.U. 2020 poz. 342):
+  - Jednostka budżetowa (Załącznik nr 3) - zespoły 0-8
+  - Samorządowy zakład budżetowy
+  - JST - Budżet organu (Załącznik nr 2) - zespoły 1, 2, 9
+- **Inicjalizacja z szablonu** - szybkie tworzenie planu kont na podstawie wzorca
+- **Hierarchia kont** - konta syntetyczne i analityczne (dwupoziomowa analityka)
+- **Łatwe dodawanie analityki** - automatyczne proponowanie następnego numeru
+- **Kopiowanie planu kont** między okresami obrachunkowymi
+- **Kopiowanie kont** do innych dzienników
+- **Zbiorcze operacje** - usuwanie, aktywacja/dezaktywacja wielu kont
+- **Eksport do Excel/JSON**
 
-> This is not a starter project (template) though. I'll probably make one in the future.
+### Dzienniki księgowań
+- Tworzenie dzienników cząstkowych
+- Rejestrowanie operacji gospodarczych
+- Kontrola bilansowania zapisów
 
-## Features
+### Okresy obrachunkowe
+- Zarządzanie latami/okresami obrachunkowymi
+- Przenoszenie planów kont między okresami
 
-- Light/dark mode
-- Responsive
-- Accessible
-- With built-in Sidebar component
-- Global search command
-- 10+ pages
-- Extra custom components
-- RTL support
+### Klasyfikacja budżetowa
+- Działy, rozdziały, paragrafy
+- Zgodność z obowiązującą klasyfikacją
 
-<details>
-<summary>Customized Components (click to expand)</summary>
+### Sprawozdawczość (planowane)
+- Bilans jednostki
+- Rachunek zysków i strat
+- Sprawozdania budżetowe (Rb-27S, Rb-28S)
 
-This project uses Shadcn UI components, but some have been slightly modified for better RTL (Right-to-Left) support and other improvements. These customized components differ from the original Shadcn UI versions.
+## 🛠 Tech Stack
 
-If you want to update components using the Shadcn CLI (e.g., `npx shadcn@latest add <component>`), it's generally safe for non-customized components. For the listed customized ones, you may need to manually merge changes to preserve the project's modifications and avoid overwriting RTL support or other updates.
+### Frontend
+- **Framework:** [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Build Tool:** [Vite](https://vitejs.dev/)
+- **UI Components:** [ShadcnUI](https://ui.shadcn.com) (TailwindCSS + RadixUI)
+- **Routing:** [TanStack Router](https://tanstack.com/router/latest)
+- **Data Fetching:** [TanStack Query](https://tanstack.com/query/latest)
+- **State Management:** [Zustand](https://zustand-demo.pmnd.rs/)
+- **Forms:** [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/)
+- **Tables:** [TanStack Table](https://tanstack.com/table/latest)
+- **Icons:** [Lucide Icons](https://lucide.dev/icons/)
 
-> If you don't require RTL support, you can safely update the 'RTL Updated Components' via the Shadcn CLI, as these changes are primarily for RTL compatibility. The 'Modified Components' may have other customizations to consider.
+### Backend
+- **Runtime:** [Node.js](https://nodejs.org/)
+- **Framework:** [Express.js](https://expressjs.com/)
+- **ORM:** [Prisma](https://www.prisma.io/)
+- **Database:** [PostgreSQL](https://www.postgresql.org/)
+- **Auth:** JWT + bcrypt
 
-### Modified Components
+## 🚀 Uruchomienie lokalne
 
-- scroll-area
-- sonner
-- separator
+### Wymagania
+- Node.js 18+
+- PostgreSQL 14+
+- pnpm (lub npm/yarn)
 
-### RTL Updated Components
+### Instalacja
 
-- alert-dialog
-- calendar
-- command
-- dialog
-- dropdown-menu
-- select
-- table
-- sheet
-- sidebar
-- switch
+1. Sklonuj repozytorium:
+\`\`\`bash
+git clone https://github.com/bizneto/budzeto.git
+cd budzeto
+\`\`\`
 
-**Notes:**
+2. Zainstaluj zależności:
+\`\`\`bash
+# Frontend
+pnpm install
 
-- **Modified Components**: These have general updates, potentially including RTL adjustments.
-- **RTL Updated Components**: These have specific changes for RTL language support (e.g., layout, positioning).
-- For implementation details, check the source files in `src/components/ui/`.
-- All other Shadcn UI components in the project are standard and can be safely updated via the CLI.
+# Backend
+cd server
+pnpm install
+\`\`\`
 
-</details>
+3. Skonfiguruj bazę danych:
+\`\`\`bash
+# Utwórz plik .env w katalogu server/
+cp server/.env.example server/.env
 
-## Tech Stack
+# Edytuj DATABASE_URL w server/.env
+# DATABASE_URL="postgresql://user:password@localhost:5432/budzeto"
+\`\`\`
 
-**UI:** [ShadcnUI](https://ui.shadcn.com) (TailwindCSS + RadixUI)
+4. Zainicjuj bazę danych:
+\`\`\`bash
+cd server
+npx prisma db push
+npx tsx prisma/seed.ts
+\`\`\`
 
-**Build Tool:** [Vite](https://vitejs.dev/)
+5. Uruchom aplikację:
+\`\`\`bash
+# Terminal 1 - Backend (port 3001)
+cd server
+pnpm run dev
 
-**Routing:** [TanStack Router](https://tanstack.com/router/latest)
+# Terminal 2 - Frontend (port 5173)
+pnpm run dev
+\`\`\`
 
-**Type Checking:** [TypeScript](https://www.typescriptlang.org/)
+6. Otwórz http://localhost:5173
 
-**Linting/Formatting:** [ESLint](https://eslint.org/) & [Prettier](https://prettier.io/)
+### Domyślne konto
+- Email: admin@example.com
+- Hasło: admin123
 
-**Icons:** [Lucide Icons](https://lucide.dev/icons/), [Tabler Icons](https://tabler.io/icons) (Brand icons only)
+## 📁 Struktura projektu
 
-**Auth (partial):** [Clerk](https://go.clerk.com/GttUAaK)
+\`\`\`
+budzeto/
+├── src/                    # Frontend React
+│   ├── components/         # Komponenty UI
+│   ├── features/           # Moduły funkcjonalne
+│   │   ├── accounts/       # Plan kont
+│   │   ├── journals/       # Dzienniki
+│   │   ├── fiscal-periods/ # Okresy obrachunkowe
+│   │   └── units/          # Jednostki budżetowe
+│   ├── services/           # API clients
+│   ├── store/              # Zustand stores
+│   └── routes/             # TanStack Router routes
+├── server/                 # Backend Express
+│   ├── src/
+│   │   ├── controllers/    # Kontrolery HTTP
+│   │   ├── services/       # Logika biznesowa
+│   │   ├── routes/         # Definicje tras
+│   │   ├── middleware/     # Middleware (auth, validation)
+│   │   └── data/           # Dane statyczne (szablony)
+│   └── prisma/
+│       ├── schema.prisma   # Model danych
+│       └── seed.ts         # Dane początkowe
+└── Rozporzadzenie.md       # Wzorcowy plan kont z rozporządzenia
+\`\`\`
 
-## Run Locally
+## 📜 Podstawa prawna
 
-Clone the project
+Aplikacja opiera się na:
+- **Rozporządzenie Ministra Rozwoju i Finansów z dnia 13 września 2017 r.** w sprawie rachunkowości oraz planów kont dla budżetu państwa, budżetów jednostek samorządu terytorialnego, jednostek budżetowych, samorządowych zakładów budżetowych, państwowych funduszy celowych oraz państwowych jednostek budżetowych mających siedzibę poza granicami Rzeczypospolitej Polskiej (Dz.U. 2020 poz. 342 - tekst jednolity)
 
-```bash
-  git clone https://github.com/satnaing/shadcn-admin.git
-```
+## �� Współpraca
 
-Go to the project directory
+Projekt jest w fazie rozwoju. Zachęcamy do:
+- Zgłaszania błędów (Issues)
+- Propozycji nowych funkcji
+- Pull requestów
 
-```bash
-  cd shadcn-admin
-```
+## 📄 Licencja
 
-Install dependencies
-
-```bash
-  pnpm install
-```
-
-Start the server
-
-```bash
-  pnpm run dev
-```
-
-## Sponsoring this project ❤️
-
-If you find this project helpful or use this in your own work, consider [sponsoring me](https://github.com/sponsors/satnaing) to support development and maintenance. You can [buy me a coffee](https://buymeacoffee.com/satnaing) as well. Don’t worry, every penny helps. Thank you! 🙏
-
-For questions or sponsorship inquiries, feel free to reach out at [satnaingdev@gmail.com](mailto:satnaingdev@gmail.com).
-
-### Current Sponsor
-
-- [Clerk](https://go.clerk.com/GttUAaK) - authentication and user management for the modern web
-
-## Author
-
-Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
-
-## License
-
-Licensed under the [MIT License](https://choosealicense.com/licenses/mit/)
+MIT License - szczegóły w pliku [LICENSE](LICENSE)
