@@ -45,7 +45,8 @@ function checkOperationReadiness(operation: Operation) {
   let entriesSum = 0
 
   operation.entries.forEach(entry => {
-    const amount = entry.amount || 0
+    // Konwertuj amount do number (może być string z API)
+    const amount = typeof entry.amount === 'string' ? parseFloat(entry.amount) : (entry.amount || 0)
     entriesSum += amount
     if (entry.debitAccountId) {
       totalDebit += amount
@@ -59,7 +60,11 @@ function checkOperationReadiness(operation: Operation) {
   totalDebit = Math.round(totalDebit * 100) / 100
   totalCredit = Math.round(totalCredit * 100) / 100
   entriesSum = Math.round(entriesSum * 100) / 100
-  const documentAmount = Math.round((operation.totalAmount || 0) * 100) / 100
+  // Konwertuj totalAmount do number (może być string z API)
+  const rawDocumentAmount = typeof operation.totalAmount === 'string'
+    ? parseFloat(operation.totalAmount)
+    : (operation.totalAmount || 0)
+  const documentAmount = Math.round(rawDocumentAmount * 100) / 100
 
   return {
     isBalanced: totalDebit === totalCredit && totalDebit > 0,
@@ -83,8 +88,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const canDelete = operation.status === 'WPROWADZONE' || operation.status === 'ZADEKRETOWANE'
 
   // Check readiness for status changes
+  // Walidacja: data księgowania + Wn = Ma (zbilansowany)
+  // Nie sprawdzamy już isFullyDecreeed bo przy BO/częściowej dekretacji nie musi być równe totalAmount
   const readinessInfo = useMemo(() => checkOperationReadiness(operation), [operation])
-  const isReady = readinessInfo.hasBookingDate && readinessInfo.isBalanced && readinessInfo.isFullyDecreeed
+  const isReady = readinessInfo.hasBookingDate && readinessInfo.isBalanced && readinessInfo.hasEntries
   const canActuallyDecree = canDecree && isReady
   const canActuallyPost = canPost && isReady
 
@@ -96,13 +103,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     }
     if (!readinessInfo.hasEntries) {
       issues.push('Brak dekretów')
-    } else {
-      if (!readinessInfo.isBalanced) {
-        issues.push(`Niezbilansowany: Wn ${readinessInfo.totalDebit.toFixed(2)}, Ma ${readinessInfo.totalCredit.toFixed(2)}`)
-      }
-      if (!readinessInfo.isFullyDecreeed) {
-        issues.push(`Niepełna dekretacja: ${readinessInfo.entriesSum.toFixed(2)} z ${readinessInfo.documentAmount.toFixed(2)}`)
-      }
+    } else if (!readinessInfo.isBalanced) {
+      issues.push(`Niezbilansowany: Wn ${readinessInfo.totalDebit.toFixed(2)}, Ma ${readinessInfo.totalCredit.toFixed(2)}`)
     }
     return issues
   }

@@ -38,7 +38,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               setOpen('edit')
             }}
           >
-            Edit
+            Edytuj
             <DropdownMenuShortcut>
               <UserPen size={16} />
             </DropdownMenuShortcut>
@@ -50,8 +50,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               setOpen('delete')
             }}
             className='text-red-500!'
+            disabled={row.original.isOwner}
           >
-            Delete
+            Usuń
             <DropdownMenuShortcut>
               <Trash2 size={16} />
             </DropdownMenuShortcut>

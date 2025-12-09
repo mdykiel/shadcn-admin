@@ -8,13 +8,87 @@ datasource db {
 }
 
 model User {
-  id              String     @id @default(uuid())
-  email           String     @unique
+  id              String         @id @default(uuid())
+  email           String         @unique
   password        String
   name            String
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  firstName       String?
+  lastName        String?
+  phone           String?
+  status          UserStatus     @default(ACTIVE)
+  isSystemAdmin   Boolean        @default(false)  // Super admin systemowy
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   unitMemberships UserUnit[]
+  roleAssignments UserRole[]
+  conversations   Conversation[]
+}
+
+// Role - grupy uprawnień (elastyczne, definiowane przez użytkownika)
+model Role {
+  id          String           @id @default(uuid())
+  unitId      String?          // null = rola systemowa, inaczej rola dla konkretnej jednostki
+  name        String
+  code        String           // np. ADMIN, KSIEGOWY, SKARBNIK - unikalny kod
+  description String?
+  isSystem    Boolean          @default(false) // role systemowe nie mogą być usuwane
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  unit        BudgetUnit?      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@unique([unitId, code])
+  @@index([unitId])
+}
+
+// Uprawnienia - granularne, np. "accounts.create", "operations.approve"
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // np. "accounts.create", "accounts.delete"
+  name        String           // Czytelna nazwa, np. "Tworzenie kont"
+  module      String           // Moduł: accounts, operations, reports, users, settings
+  description String?
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+}
+
+// Powiązanie Rola <-> Uprawnienie
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// Powiązanie Użytkownik <-> Rola (w kontekście jednostki, dziennika, okresu)
+model UserRole {
+  id             String        @id @default(uuid())
+  userId         String
+  roleId         String
+  unitId         String        // wymagane - do której jednostki
+  journalId      String?       // null = wszystkie dzienniki, inaczej tylko ten dziennik
+  fiscalPeriodId String?       // null = wszystkie okresy, inaczej tylko ten okres
+  createdAt      DateTime      @default(now())
+  role           Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  unit           BudgetUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journal        Journal?      @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  fiscalPeriod   FiscalPeriod? @relation(fields: [fiscalPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, unitId, journalId, fiscalPeriodId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([unitId])
+  @@index([journalId])
+  @@index([fiscalPeriodId])
 }
 
 model UserUnit {
@@ -53,6 +127,9 @@ model BudgetUnit {
   operations            Operation[]
   reports               Report[]
   userMemberships       UserUnit[]
+  roles                 Role[]
+  userRoles             UserRole[]
+  conversations         Conversation[]
 }
 
 model FiscalPeriod {
@@ -68,6 +145,7 @@ model FiscalPeriod {
   unit        BudgetUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
   accounts    Account[]
   operations  Operation[]
+  userRoles   UserRole[]
 
   @@unique([unitId, name])
   @@index([unitId, isActive])
@@ -91,6 +169,7 @@ model Journal {
   budgetClassifications  BudgetClassification[]
   unit                   BudgetUnit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
   operations             Operation[]
+  userRoles              UserRole[]
 
   @@unique([unitId, shortName])
   @@index([unitId, isActive])
@@ -143,10 +222,11 @@ model BudgetClassification {
   isActive       Boolean             @default(true)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
-  journal        Journal             @relation(fields: [journalId], references: [id], onDelete: Cascade)
-  unit           BudgetUnit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  planItems      FinancialPlanItem[]
-  journalEntries JournalEntry[]
+  journal              Journal                   @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  unit                 BudgetUnit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  planItems            FinancialPlanItem[]
+  journalEntries       JournalEntry[]
+  changeRequestDetails PlanChangeRequestDetail[]
 
   @@unique([unitId, journalId, dzial, rozdzial, paragraf, podparagraf])
   @@index([unitId, type])
@@ -154,19 +234,31 @@ model BudgetClassification {
 }
 
 model FinancialPlan {
-  id         String              @id @default(uuid())
-  unitId     String
-  year       Int
-  version    Int                 @default(1)
-  status     PlanStatus          @default(PROJEKT)
-  approvedAt DateTime?
-  approvedBy String?
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-  unit       BudgetUnit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  items      FinancialPlanItem[]
+  id              String              @id @default(uuid())
+  unitId          String
+  year            Int
+  version         Int                 @default(1)
+  planType        PlanType            @default(PROJEKT)     // PROJEKT, PLAN_PIERWOTNY, PLAN_PO_ZMIANACH
+  status          PlanStatus          @default(PROJEKT)
+  name            String?                                    // Opcjonalna nazwa, np. "Plan finansowy na 2024"
+  description     String?
+  validFrom       DateTime?                                  // Data obowiązywania od
+  validTo         DateTime?                                  // Data obowiązywania do
+  approvedAt      DateTime?
+  approvedBy      String?
+  basedOnPlanId   String?                                    // Referencja do planu bazowego (dla zmian)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  unit            BudgetUnit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  basedOnPlan     FinancialPlan?      @relation("PlanHistory", fields: [basedOnPlanId], references: [id])
+  derivedPlans    FinancialPlan[]     @relation("PlanHistory")
+  items           FinancialPlanItem[]
+  changeRequests  PlanChangeRequest[]
+  changes         PlanChange[]
 
   @@unique([unitId, year, version])
+  @@index([unitId, year])
+  @@index([planType, status])
 }
 
 model FinancialPlanItem {
@@ -174,11 +266,95 @@ model FinancialPlanItem {
   planId           String
   classificationId String
   plannedAmount    Decimal              @db.Decimal(15, 2)
+  currentAmount    Decimal              @db.Decimal(15, 2)  @default(0) // Aktualna kwota po zmianach
+  executedAmount   Decimal              @db.Decimal(15, 2)  @default(0) // Kwota wykonana
   createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
   classification   BudgetClassification @relation(fields: [classificationId], references: [id])
   plan             FinancialPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  changeDetails    PlanChangeDetail[]
 
   @@unique([planId, classificationId])
+  @@index([planId])
+  @@index([classificationId])
+}
+
+// Wniosek o zmianę planu finansowego
+model PlanChangeRequest {
+  id             String                    @id @default(uuid())
+  planId         String
+  requestNumber  String                                       // Numer wniosku, np. "ZM/2024/001"
+  requestDate    DateTime                  @default(now())
+  requestedBy    String?                                      // Kto składa wniosek
+  reason         String                    @db.Text           // Uzasadnienie zmiany
+  status         PlanChangeRequestStatus   @default(DRAFT)
+  approvedAt     DateTime?
+  approvedBy     String?
+  rejectedAt     DateTime?
+  rejectedBy     String?
+  rejectionReason String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  plan           FinancialPlan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  details        PlanChangeRequestDetail[]
+  change         PlanChange?                                  // Po zatwierdzeniu tworzony jest rekord zmiany
+
+  @@index([planId])
+  @@index([status])
+}
+
+// Szczegóły wniosku o zmianę (pozycje do zmiany)
+model PlanChangeRequestDetail {
+  id                 String               @id @default(uuid())
+  requestId          String
+  classificationId   String
+  currentAmount      Decimal              @db.Decimal(15, 2)  // Kwota przed zmianą
+  requestedAmount    Decimal              @db.Decimal(15, 2)  // Wnioskowana kwota
+  changeAmount       Decimal              @db.Decimal(15, 2)  // Różnica (może być ujemna)
+  justification      String?                                   // Uzasadnienie dla tej pozycji
+  createdAt          DateTime             @default(now())
+  request            PlanChangeRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  classification     BudgetClassification @relation(fields: [classificationId], references: [id])
+
+  @@unique([requestId, classificationId])
+  @@index([requestId])
+}
+
+// Zatwierdzona zmiana planu
+model PlanChange {
+  id               String              @id @default(uuid())
+  planId           String
+  requestId        String?             @unique              // Powiązanie z wnioskiem (opcjonalne - zmiana może być bez wniosku)
+  changeNumber     String                                   // Numer zmiany, np. "ZM/2024/001"
+  changeDate       DateTime            @default(now())
+  changeType       PlanChangeType      @default(ZMIANA)     // ZMIANA, KOREKTA, PRZENIESIENIE
+  description      String?
+  approvedBy       String?
+  legalBasis       String?                                  // Podstawa prawna zmiany
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  plan             FinancialPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  request          PlanChangeRequest?  @relation(fields: [requestId], references: [id])
+  details          PlanChangeDetail[]
+
+  @@index([planId])
+  @@index([changeDate])
+}
+
+// Szczegóły zmiany planu (które pozycje się zmieniły)
+model PlanChangeDetail {
+  id               String               @id @default(uuid())
+  changeId         String
+  planItemId       String
+  previousAmount   Decimal              @db.Decimal(15, 2)  // Kwota przed zmianą
+  newAmount        Decimal              @db.Decimal(15, 2)  // Kwota po zmianie
+  changeAmount     Decimal              @db.Decimal(15, 2)  // Różnica
+  createdAt        DateTime             @default(now())
+  change           PlanChange           @relation(fields: [changeId], references: [id], onDelete: Cascade)
+  planItem         FinancialPlanItem    @relation(fields: [planItemId], references: [id], onDelete: Cascade)
+
+  @@index([changeId])
+  @@index([planItemId])
 }
 
 model Operation {
@@ -209,8 +385,8 @@ model Operation {
 model JournalEntry {
   id                        String                @id @default(uuid())
   operationId               String
-  debitAccountId            String
-  creditAccountId           String
+  debitAccountId            String?               // Opcjonalne - dla BO może być tylko Wn lub tylko Ma
+  creditAccountId           String?               // Opcjonalne - dla BO może być tylko Wn lub tylko Ma
   amount                    Decimal               @db.Decimal(15, 2)
   offBalanceDebitAccountId  String?
   offBalanceCreditAccountId String?
@@ -219,8 +395,8 @@ model JournalEntry {
   journalNumber             Int?
   createdAt                 DateTime              @default(now())
   classification            BudgetClassification? @relation(fields: [classificationId], references: [id])
-  creditAccount             Account               @relation("CreditAccount", fields: [creditAccountId], references: [id])
-  debitAccount              Account               @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  creditAccount             Account?              @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  debitAccount              Account?              @relation("DebitAccount", fields: [debitAccountId], references: [id])
   offBalanceCreditAccount   Account?              @relation("OffBalanceCreditAccount", fields: [offBalanceCreditAccountId], references: [id])
   offBalanceDebitAccount    Account?              @relation("OffBalanceDebitAccount", fields: [offBalanceDebitAccountId], references: [id])
   operation                 Operation             @relation(fields: [operationId], references: [id], onDelete: Cascade)
@@ -241,6 +417,13 @@ model Report {
   unit        BudgetUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@index([unitId, type])
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  SUSPENDED
 }
 
 enum UserUnitRole {
@@ -286,9 +469,30 @@ enum ClassificationType {
 }
 
 enum PlanStatus {
-  PROJEKT
-  ZATWIERDZONY
-  ZMIANA
+  PROJEKT               // Wersja robocza
+  ZATWIERDZONY          // Plan zatwierdzony
+  ARCHIWALNY            // Poprzednia wersja planu (po wprowadzeniu zmian)
+}
+
+enum PlanType {
+  PROJEKT               // Projekt planu (przed zatwierdzeniem)
+  PLAN_PIERWOTNY        // Plan pierwotny (uchwalony)
+  PLAN_PO_ZMIANACH      // Plan po wprowadzeniu zmian
+}
+
+enum PlanChangeRequestStatus {
+  DRAFT                 // Wersja robocza wniosku
+  SUBMITTED             // Wniosek złożony
+  IN_REVIEW             // W trakcie rozpatrywania
+  APPROVED              // Zatwierdzony
+  REJECTED              // Odrzucony
+  CANCELLED             // Anulowany
+}
+
+enum PlanChangeType {
+  ZMIANA                // Standardowa zmiana planu (uchwała)
+  KOREKTA               // Korekta techniczna
+  PRZENIESIENIE         // Przeniesienie środków między paragrafami
 }
 
 enum DocumentType {
@@ -322,4 +526,39 @@ enum ReportType {
   RB_34S
   RB_N
   RB_Z
+}
+
+// =====================
+// AI Chat - Asystent księgowy
+// =====================
+
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String
+  unitId    String?   // Opcjonalny kontekst jednostki budżetowej
+  title     String    // Tytuł rozmowy (generowany z pierwszego pytania)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit      BudgetUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  messages  Message[]
+
+  @@index([userId])
+  @@index([unitId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  role           MessageRole  // USER lub ASSISTANT
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
 }

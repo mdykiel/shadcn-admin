@@ -40,6 +40,7 @@ import { operationsService } from '@/services/operations'
 import { journalService } from '@/services/journals'
 import { accountsService } from '@/services/accounts'
 import { budgetClassificationService } from '@/services/budget-classification'
+import { fiscalPeriodService, FiscalPeriod } from '@/services/fiscal-periods'
 
 const documentTypeLabels: Record<DocumentType, string> = {
   BO: 'Bilans otwarcia (BO)',
@@ -103,6 +104,7 @@ export function OperationMutateDrawer({
   const [offBalanceAccounts, setOffBalanceAccounts] = useState<Account[]>([])
   const [classifications, setClassifications] = useState<BudgetClassification[]>([])
   const [selectedJournalId, setSelectedJournalId] = useState<string>('')
+  const [activeFiscalPeriod, setActiveFiscalPeriod] = useState<FiscalPeriod | null>(null)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -141,7 +143,12 @@ export function OperationMutateDrawer({
     let totalCredit = 0
 
     watchedEntries.forEach(entry => {
-      const amount = parseFloat(entry?.amount || '0') || 0
+      // Handle both string and number types for amount
+      const rawAmount = entry?.amount
+      const amount = typeof rawAmount === 'number'
+        ? rawAmount
+        : parseFloat(String(rawAmount) || '0') || 0
+
       if (entry?.debitAccountId) {
         totalDebit += amount
       }
@@ -162,18 +169,19 @@ export function OperationMutateDrawer({
     }
   }, [watchedEntries])
 
-  // Pobierz dzienniki przy otwarciu
+  // Pobierz dzienniki i aktywny okres przy otwarciu
   useEffect(() => {
     if (open && currentUnit) {
       journalService.getActive(currentUnit.id).then(setJournals).catch(console.error)
+      fiscalPeriodService.getActive(currentUnit.id).then(setActiveFiscalPeriod).catch(console.error)
     }
   }, [open, currentUnit])
 
-  // Pobierz konta i klasyfikacje przy zmianie dziennika
+  // Pobierz konta i klasyfikacje przy zmianie dziennika (filtrowane po aktywnym okresie)
   useEffect(() => {
-    if (selectedJournalId && currentUnit) {
-      // Konta bilansowe - standardowe
-      accountsService.getAll(currentUnit.id, selectedJournalId)
+    if (selectedJournalId && currentUnit && activeFiscalPeriod) {
+      // Konta bilansowe - standardowe, filtrowane po aktywnym okresie
+      accountsService.getAll(currentUnit.id, selectedJournalId, activeFiscalPeriod.id)
         .then(accs => {
           const balanceAccs = accs.filter(a => a.accountType !== 'POZABILANSOWE')
           const offBalanceAccs = accs.filter(a => a.accountType === 'POZABILANSOWE')
@@ -187,7 +195,7 @@ export function OperationMutateDrawer({
         .then(setClassifications)
         .catch(console.error)
     }
-  }, [selectedJournalId, currentUnit])
+  }, [selectedJournalId, currentUnit, activeFiscalPeriod])
 
   useEffect(() => {
     if (open) {
@@ -493,9 +501,12 @@ export function OperationMutateDrawer({
                   {/* Balance summary when balanced */}
                   {balanceInfo.hasEntries && balanceInfo.isBalanced && (
                     <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950">
-                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
-                        <span className="font-medium">✓ Dokument zbilansowany</span>
-                        <span>({balanceInfo.totalDebit.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })})</span>
+                      <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-300">
+                        ✓ Dokument zbilansowany
+                      </div>
+                      <div className="mt-1 space-y-1 text-sm text-green-700 dark:text-green-300">
+                        <div>Suma Wn: {balanceInfo.totalDebit.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}</div>
+                        <div>Suma Ma: {balanceInfo.totalCredit.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}</div>
                       </div>
                     </div>
                   )}

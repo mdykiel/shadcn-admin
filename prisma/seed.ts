@@ -310,6 +310,244 @@ async function main() {
     console.log('✅ Created 4 sample operations with journal entries');
   }
 
+  // Create default permissions
+  const permissionsData = [
+    // Moduł: accounts (Plan kont)
+    { code: 'accounts.view', name: 'Przeglądanie planu kont', module: 'accounts' },
+    { code: 'accounts.create', name: 'Tworzenie kont', module: 'accounts' },
+    { code: 'accounts.edit', name: 'Edycja kont', module: 'accounts' },
+    { code: 'accounts.delete', name: 'Usuwanie kont', module: 'accounts' },
+    { code: 'accounts.initialize', name: 'Inicjalizacja z szablonu', module: 'accounts' },
+
+    // Moduł: operations (Księgowania)
+    { code: 'operations.view', name: 'Przeglądanie operacji', module: 'operations' },
+    { code: 'operations.create', name: 'Tworzenie operacji', module: 'operations' },
+    { code: 'operations.edit', name: 'Edycja operacji', module: 'operations' },
+    { code: 'operations.delete', name: 'Usuwanie operacji', module: 'operations' },
+    { code: 'operations.decree', name: 'Dekretowanie operacji', module: 'operations' },
+    { code: 'operations.book', name: 'Księgowanie operacji', module: 'operations' },
+    { code: 'operations.unbook', name: 'Odksięgowywanie operacji', module: 'operations' },
+    { code: 'operations.approve', name: 'Zatwierdzanie operacji', module: 'operations' },
+
+    // Moduł: reports (Sprawozdania)
+    { code: 'reports.view', name: 'Przeglądanie sprawozdań', module: 'reports' },
+    { code: 'reports.generate', name: 'Generowanie sprawozdań', module: 'reports' },
+    { code: 'reports.export', name: 'Eksport sprawozdań', module: 'reports' },
+
+    // Moduł: classification (Klasyfikacja budżetowa)
+    { code: 'classification.view', name: 'Przeglądanie klasyfikacji', module: 'classification' },
+    { code: 'classification.manage', name: 'Zarządzanie klasyfikacją', module: 'classification' },
+
+    // Moduł: journals (Dzienniki)
+    { code: 'journals.view', name: 'Przeglądanie dzienników', module: 'journals' },
+    { code: 'journals.manage', name: 'Zarządzanie dziennikami', module: 'journals' },
+
+    // Moduł: fiscal-periods (Okresy obrachunkowe)
+    { code: 'fiscal-periods.view', name: 'Przeglądanie okresów', module: 'fiscal-periods' },
+    { code: 'fiscal-periods.manage', name: 'Zarządzanie okresami', module: 'fiscal-periods' },
+    { code: 'fiscal-periods.close', name: 'Zamykanie okresów', module: 'fiscal-periods' },
+    { code: 'fiscal-periods.reopen', name: 'Otwieranie zamkniętych okresów', module: 'fiscal-periods' },
+
+    // Moduł: users (Użytkownicy)
+    { code: 'users.view', name: 'Przeglądanie użytkowników', module: 'users' },
+    { code: 'users.invite', name: 'Zapraszanie użytkowników', module: 'users' },
+    { code: 'users.manage', name: 'Zarządzanie użytkownikami', module: 'users' },
+    { code: 'users.roles', name: 'Przypisywanie ról', module: 'users' },
+
+    // Moduł: roles (Role i uprawnienia)
+    { code: 'roles.view', name: 'Przeglądanie ról', module: 'roles' },
+    { code: 'roles.manage', name: 'Zarządzanie rolami', module: 'roles' },
+
+    // Moduł: settings (Ustawienia jednostki)
+    { code: 'settings.view', name: 'Przeglądanie ustawień', module: 'settings' },
+    { code: 'settings.manage', name: 'Zarządzanie ustawieniami', module: 'settings' },
+  ];
+
+  for (const perm of permissionsData) {
+    await prisma.permission.upsert({
+      where: { code: perm.code },
+      update: { name: perm.name, module: perm.module },
+      create: perm,
+    });
+  }
+  console.log('✅ Created', permissionsData.length, 'permissions');
+
+  // Create default system roles
+  const allPermissions = await prisma.permission.findMany();
+  const permissionMap = new Map(allPermissions.map(p => [p.code, p.id]));
+
+  // Rola: Administrator
+  const adminRole = await prisma.role.upsert({
+    where: { unitId_code: { unitId: unit.id, code: 'ADMIN' } },
+    update: {},
+    create: {
+      unitId: unit.id,
+      name: 'Administrator',
+      code: 'ADMIN',
+      description: 'Pełny dostęp do wszystkich funkcji jednostki',
+      isSystem: true,
+    },
+  });
+
+  // Przypisz wszystkie uprawnienia do roli Admin
+  for (const perm of allPermissions) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: perm.id } },
+      update: {},
+      create: { roleId: adminRole.id, permissionId: perm.id },
+    });
+  }
+
+  // Rola: Księgowy
+  const accountantRole = await prisma.role.upsert({
+    where: { unitId_code: { unitId: unit.id, code: 'KSIEGOWY' } },
+    update: {},
+    create: {
+      unitId: unit.id,
+      name: 'Księgowy',
+      code: 'KSIEGOWY',
+      description: 'Dostęp do księgowań i sprawozdań',
+      isSystem: true,
+    },
+  });
+
+  const accountantPermissions = [
+    'accounts.view', 'accounts.create', 'accounts.edit',
+    'operations.view', 'operations.create', 'operations.edit', 'operations.approve',
+    'reports.view', 'reports.generate', 'reports.export',
+    'classification.view',
+    'journals.view',
+    'fiscal-periods.view',
+  ];
+  for (const code of accountantPermissions) {
+    const permId = permissionMap.get(code);
+    if (permId) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: accountantRole.id, permissionId: permId } },
+        update: {},
+        create: { roleId: accountantRole.id, permissionId: permId },
+      });
+    }
+  }
+
+  // Rola: Przeglądający
+  const viewerRole = await prisma.role.upsert({
+    where: { unitId_code: { unitId: unit.id, code: 'PRZEGLADAJACY' } },
+    update: {},
+    create: {
+      unitId: unit.id,
+      name: 'Przeglądający',
+      code: 'PRZEGLADAJACY',
+      description: 'Tylko odczyt danych',
+      isSystem: true,
+    },
+  });
+
+  const viewerPermissions = [
+    'accounts.view', 'operations.view', 'reports.view',
+    'classification.view', 'journals.view', 'fiscal-periods.view',
+  ];
+  for (const code of viewerPermissions) {
+    const permId = permissionMap.get(code);
+    if (permId) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: viewerRole.id, permissionId: permId } },
+        update: {},
+        create: { roleId: viewerRole.id, permissionId: permId },
+      });
+    }
+  }
+
+  // Rola: Dekretujący (może dekretować ale nie księgować)
+  const decreerRole = await prisma.role.upsert({
+    where: { unitId_code: { unitId: unit.id, code: 'DECREER' } },
+    update: {},
+    create: {
+      unitId: unit.id,
+      name: 'Dekretujący',
+      code: 'DECREER',
+      description: 'Może wprowadzać i dekretować operacje, ale nie księgować',
+      isSystem: true,
+    },
+  });
+
+  const decreerPermissions = [
+    'accounts.view',
+    'operations.view', 'operations.create', 'operations.edit', 'operations.decree',
+    'reports.view',
+    'classification.view',
+    'journals.view',
+    'fiscal-periods.view',
+  ];
+  for (const code of decreerPermissions) {
+    const permId = permissionMap.get(code);
+    if (permId) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: decreerRole.id, permissionId: permId } },
+        update: {},
+        create: { roleId: decreerRole.id, permissionId: permId },
+      });
+    }
+  }
+
+  // Rola: Skarbnik (może zamykać okresy)
+  const treasurerRole = await prisma.role.upsert({
+    where: { unitId_code: { unitId: unit.id, code: 'TREASURER' } },
+    update: {},
+    create: {
+      unitId: unit.id,
+      name: 'Skarbnik',
+      code: 'TREASURER',
+      description: 'Pełne uprawnienia księgowe + zamykanie okresów',
+      isSystem: true,
+    },
+  });
+
+  const treasurerPermissions = [
+    'accounts.view', 'accounts.create', 'accounts.edit',
+    'operations.view', 'operations.create', 'operations.edit', 'operations.decree',
+    'operations.book', 'operations.unbook', 'operations.approve',
+    'reports.view', 'reports.generate', 'reports.export',
+    'classification.view', 'classification.manage',
+    'journals.view', 'journals.manage',
+    'fiscal-periods.view', 'fiscal-periods.manage', 'fiscal-periods.close',
+  ];
+  for (const code of treasurerPermissions) {
+    const permId = permissionMap.get(code);
+    if (permId) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: treasurerRole.id, permissionId: permId } },
+        update: {},
+        create: { roleId: treasurerRole.id, permissionId: permId },
+      });
+    }
+  }
+
+  console.log('✅ Created default roles: Administrator, Księgowy, Dekretujący, Skarbnik, Przeglądający');
+
+  // Assign Admin role to the test user
+  const existingAdminRole = await prisma.userRole.findFirst({
+    where: {
+      userId: user.id,
+      roleId: adminRole.id,
+      unitId: unit.id,
+      journalId: null,
+      fiscalPeriodId: null,
+    },
+  });
+  if (!existingAdminRole) {
+    await prisma.userRole.create({
+      data: {
+        userId: user.id,
+        roleId: adminRole.id,
+        unitId: unit.id,
+        journalId: null,
+        fiscalPeriodId: null,
+      },
+    });
+  }
+  console.log('✅ Assigned Admin role to test user');
+
   console.log('🎉 Seeding completed!');
 }
 

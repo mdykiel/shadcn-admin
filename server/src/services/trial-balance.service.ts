@@ -23,20 +23,28 @@ export interface TrialBalanceRow {
 
 export interface TrialBalanceParams {
   unitId: string
+  fiscalPeriodId?: string
   journalId?: string
   status?: 'ZADEKRETOWANE' | 'ZAKSIEGOWANE'
   dateFrom?: Date
   dateTo?: Date
-  yearStart?: Date // Początek roku obrachunkowego (dla narastająco)
 }
 
 export const trialBalanceService = {
   async getTrialBalance(params: TrialBalanceParams): Promise<TrialBalanceRow[]> {
-    const { unitId, journalId, status, dateFrom, dateTo, yearStart } = params
+    const { unitId, fiscalPeriodId, journalId, status, dateFrom, dateTo } = params
 
-    // Domyślne daty
-    const effectiveYearStart = yearStart || new Date(new Date().getFullYear(), 0, 1)
-    const effectiveDateTo = dateTo || new Date()
+    // Pobierz okres obrachunkowy jeśli podany, w przeciwnym razie aktywny
+    let fiscalPeriod = null
+    if (fiscalPeriodId) {
+      fiscalPeriod = await prisma.fiscalPeriod.findUnique({ where: { id: fiscalPeriodId } })
+    } else {
+      fiscalPeriod = await prisma.fiscalPeriod.findFirst({ where: { unitId, isActive: true } })
+    }
+
+    // Domyślne daty na podstawie okresu obrachunkowego
+    const effectiveYearStart = fiscalPeriod?.startDate || new Date(new Date().getFullYear(), 0, 1)
+    const effectiveDateTo = dateTo || fiscalPeriod?.endDate || new Date()
     const effectiveDateFrom = dateFrom || effectiveYearStart
 
     // Pobierz wszystkie aktywne konta dla jednostki

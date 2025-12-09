@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { trialBalanceApi, TrialBalanceRow } from '@/services/trial-balance'
+import { trialBalanceApi } from '@/services/trial-balance'
 import { journalService } from '@/services/journals'
+import { fiscalPeriodService, type FiscalPeriod } from '@/services/fiscal-periods'
 import { useAuthStore } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,16 +19,29 @@ import { TrialBalanceTable } from './components/trial-balance-table'
 
 type OperationStatus = 'all' | 'ZADEKRETOWANE' | 'ZAKSIEGOWANE'
 
-export function TrialBalance() {
-  const { user } = useAuthStore()
-  const unitId = user?.unitId || ''
+// Pomocnicza funkcja do formatowania daty na YYYY-MM-DD
+function formatDate(date: Date | string): string {
+  const d = new Date(date)
+  return d.toISOString().split('T')[0]
+}
 
+export function TrialBalance() {
+  const { currentUnit } = useAuthStore()
+  const unitId = currentUnit?.id || ''
+
+  const [fiscalPeriodId, setFiscalPeriodId] = useState<string>('')
   const [journalId, setJournalId] = useState<string>('all')
   const [status, setStatus] = useState<OperationStatus>('ZAKSIEGOWANE')
   const [dateFrom, setDateFrom] = useState<string>('')
-  const [dateTo, setDateTo] = useState<string>(new Date().toISOString().split('T')[0])
-  const [yearStart, setYearStart] = useState<string>(`${new Date().getFullYear()}-01-01`)
+  const [dateTo, setDateTo] = useState<string>('')
   const [shouldFetch, setShouldFetch] = useState(false)
+
+  // Pobierz okresy obrachunkowe
+  const { data: fiscalPeriods = [] } = useQuery({
+    queryKey: ['fiscal-periods', unitId],
+    queryFn: () => fiscalPeriodService.getAll(unitId),
+    enabled: !!unitId,
+  })
 
   const { data: journals = [] } = useQuery({
     queryKey: ['journals', unitId],
@@ -35,17 +49,40 @@ export function TrialBalance() {
     enabled: !!unitId,
   })
 
+  // Ustaw domyślny aktywny okres i daty po załadowaniu okresów
+  useEffect(() => {
+    if (fiscalPeriods.length > 0 && !fiscalPeriodId) {
+      const activePeriod = fiscalPeriods.find(p => p.isActive) || fiscalPeriods[0]
+      setFiscalPeriodId(activePeriod.id)
+      setDateFrom(formatDate(activePeriod.startDate))
+      setDateTo(formatDate(activePeriod.endDate))
+    }
+  }, [fiscalPeriods, fiscalPeriodId])
+
+  // Aktualizuj daty gdy zmieni się okres
+  const handlePeriodChange = (periodId: string) => {
+    setFiscalPeriodId(periodId)
+    setShouldFetch(false)
+    const period = fiscalPeriods.find(p => p.id === periodId)
+    if (period) {
+      setDateFrom(formatDate(period.startDate))
+      setDateTo(formatDate(period.endDate))
+    }
+  }
+
+  const selectedPeriod = fiscalPeriods.find(p => p.id === fiscalPeriodId)
+
   const { data: trialBalanceData = [], isLoading, isFetching } = useQuery({
-    queryKey: ['trial-balance', unitId, journalId, status, dateFrom, dateTo, yearStart, shouldFetch],
+    queryKey: ['trial-balance', unitId, fiscalPeriodId, journalId, status, dateFrom, dateTo, shouldFetch],
     queryFn: () => trialBalanceApi.getTrialBalance({
       unitId,
+      fiscalPeriodId: fiscalPeriodId || undefined,
       journalId: journalId !== 'all' ? journalId : undefined,
       status: status !== 'all' ? status : undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-      yearStart: yearStart || undefined,
     }),
-    enabled: !!unitId && shouldFetch,
+    enabled: !!unitId && !!fiscalPeriodId && shouldFetch,
   })
 
   const handleGenerate = () => {
@@ -93,7 +130,22 @@ export function TrialBalance() {
             <CardTitle className="text-base">Parametry zestawienia</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="space-y-2">
+                <Label>Okres obrachunkowy</Label>
+                <Select value={fiscalPeriodId} onValueChange={handlePeriodChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Wybierz okres" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fiscalPeriods.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} {p.isActive && '(aktywny)'} {p.isClosed && '(zamknięty)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label>Dziennik</Label>
                 <Select value={journalId} onValueChange={(v) => { setJournalId(v); setShouldFetch(false); }}>
@@ -120,10 +172,6 @@ export function TrialBalance() {
                     <SelectItem value="ZAKSIEGOWANE">Zaksięgowane</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Początek roku</Label>
-                <Input type="date" value={yearStart} onChange={e => { setYearStart(e.target.value); setShouldFetch(false); }} />
               </div>
               <div className="space-y-2">
                 <Label>Data od</Label>

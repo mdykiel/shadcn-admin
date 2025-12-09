@@ -10,6 +10,10 @@ import classificationsRoutes from './routes/classifications.routes.js';
 import operationsRoutes from './routes/operations.routes.js';
 import trialBalanceRoutes from './routes/trial-balance.routes.js';
 import fiscalPeriodsRoutes from './routes/fiscal-periods.routes.js';
+import usersRoutes from './routes/users.routes.js';
+import rolesRoutes from './routes/roles.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+import plansRoutes from './routes/plans.routes.js';
 
 dotenv.config();
 
@@ -43,6 +47,10 @@ app.use('/api/accounts', accountsRoutes);
 app.use('/api/classifications', classificationsRoutes);
 app.use('/api/operations', operationsRoutes);
 app.use('/api/reports/trial-balance', trialBalanceRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/roles', rolesRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/plans', plansRoutes);
 
 // Error handling
 app.use(errorHandler);

@@ -72,8 +72,10 @@ export const operationsController = {
       if (error.message && (
         error.message.includes('zbilansowany') ||
         error.message.includes('zadekretowany') ||
+        error.message.includes('dekret') ||
         error.message.includes('okres') ||
-        error.message.includes('Okres')
+        error.message.includes('Okres') ||
+        error.message.includes('Data księgowania')
       )) {
         res.status(400).json({ error: error.message })
       } else {

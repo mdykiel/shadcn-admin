@@ -50,11 +50,14 @@ async function validateStatusChange(operationId: string, newStatus: OperationSta
     let totalCredit = new Decimal(0)
 
     for (const entry of operation.entries) {
+      // Konwertuj amount do Decimal (może być string z Prisma)
+      const amount = new Decimal(entry.amount.toString())
+
       if (entry.debitAccountId) {
-        totalDebit = totalDebit.plus(entry.amount)
+        totalDebit = totalDebit.plus(amount)
       }
       if (entry.creditAccountId) {
-        totalCredit = totalCredit.plus(entry.amount)
+        totalCredit = totalCredit.plus(amount)
       }
     }
 
@@ -62,18 +65,9 @@ async function validateStatusChange(operationId: string, newStatus: OperationSta
       throw new Error(`Dokument nie jest zbilansowany. Wn: ${totalDebit.toFixed(2)}, Ma: ${totalCredit.toFixed(2)}`)
     }
 
-    // Check if fully decreed (sum of entries = totalAmount)
-    const entriesSum = operation.entries.reduce(
-      (sum, entry) => sum.plus(entry.amount),
-      new Decimal(0)
-    )
-
-    // For entries, we count total amount as sum of all entry amounts (which should equal document amount)
-    // Each entry represents an amount that should be decreed
-    const totalAmount = new Decimal(operation.totalAmount.toString())
-
-    if (!entriesSum.equals(totalAmount)) {
-      throw new Error(`Dokument nie jest w pełni zadekretowany. Suma dekretów: ${entriesSum.toFixed(2)}, Kwota dokumentu: ${totalAmount.toFixed(2)}`)
+    // Dokument musi mieć przynajmniej jeden dekret
+    if (operation.entries.length === 0) {
+      throw new Error('Dokument nie ma żadnych dekretów')
     }
 
     return { operation, fiscalPeriod }
@@ -167,15 +161,19 @@ export const operationsService = {
         totalAmount: data.totalAmount,
         status: 'WPROWADZONE',
         entries: data.entries ? {
-          create: data.entries.map(entry => ({
-            debitAccountId: entry.debitAccountId,
-            creditAccountId: entry.creditAccountId,
-            offBalanceDebitAccountId: entry.offBalanceDebitAccountId,
-            offBalanceCreditAccountId: entry.offBalanceCreditAccountId,
-            classificationId: entry.classificationId,
-            amount: entry.amount,
-            description: entry.description,
-          })),
+          create: data.entries.map(entry => {
+            // Budujemy obiekt tylko z niepustymi wartościami
+            const entryData: any = {
+              amount: entry.amount,
+            }
+            if (entry.debitAccountId) entryData.debitAccountId = entry.debitAccountId
+            if (entry.creditAccountId) entryData.creditAccountId = entry.creditAccountId
+            if (entry.offBalanceDebitAccountId) entryData.offBalanceDebitAccountId = entry.offBalanceDebitAccountId
+            if (entry.offBalanceCreditAccountId) entryData.offBalanceCreditAccountId = entry.offBalanceCreditAccountId
+            if (entry.classificationId) entryData.classificationId = entry.classificationId
+            if (entry.description) entryData.description = entry.description
+            return entryData
+          }),
         } : undefined,
       },
       include: {
@@ -203,12 +201,64 @@ export const operationsService = {
     contractorName?: string
     contractorNip?: string
     totalAmount: number
+    entries?: Array<{
+      debitAccountId?: string
+      creditAccountId?: string
+      offBalanceDebitAccountId?: string
+      offBalanceCreditAccountId?: string
+      classificationId?: string
+      amount: number
+      description?: string
+    }>
   }>) {
+    const { entries, ...operationData } = data
+
+    // Jeśli są entries, najpierw usuń stare i dodaj nowe
+    if (entries && entries.length > 0) {
+      // Usuń stare entries
+      await prisma.journalEntry.deleteMany({
+        where: { operationId: id }
+      })
+
+      // Przygotuj nowe entries
+      const entriesCreate = entries.map(entry => {
+        const entryData: any = {
+          operationId: id,
+          amount: entry.amount,
+        }
+        if (entry.debitAccountId) entryData.debitAccountId = entry.debitAccountId
+        if (entry.creditAccountId) entryData.creditAccountId = entry.creditAccountId
+        if (entry.offBalanceDebitAccountId) entryData.offBalanceDebitAccountId = entry.offBalanceDebitAccountId
+        if (entry.offBalanceCreditAccountId) entryData.offBalanceCreditAccountId = entry.offBalanceCreditAccountId
+        if (entry.classificationId) entryData.classificationId = entry.classificationId
+        if (entry.description) entryData.description = entry.description
+        return entryData
+      })
+
+      // Utwórz nowe entries
+      await prisma.journalEntry.createMany({
+        data: entriesCreate
+      })
+    }
+
+    // Zaktualizuj operację
     return prisma.operation.update({
       where: { id },
       data: {
-        ...data,
-        documentType: data.documentType as any,
+        ...operationData,
+        documentType: operationData.documentType as any,
+      },
+      include: {
+        journal: true,
+        entries: {
+          include: {
+            debitAccount: true,
+            creditAccount: true,
+            offBalanceDebitAccount: true,
+            offBalanceCreditAccount: true,
+            classification: true,
+          },
+        },
       },
     })
   },
@@ -255,25 +305,28 @@ export const operationsService = {
 
   // Journal Entries
   async addEntry(operationId: string, data: {
-    debitAccountId: string
-    creditAccountId: string
+    debitAccountId?: string
+    creditAccountId?: string
     amount: number
     offBalanceDebitAccountId?: string
     offBalanceCreditAccountId?: string
     classificationId?: string
     description?: string
   }) {
+    // Budujemy obiekt tylko z niepustymi wartościami
+    const entryData: any = {
+      operationId,
+      amount: data.amount,
+    }
+    if (data.debitAccountId) entryData.debitAccountId = data.debitAccountId
+    if (data.creditAccountId) entryData.creditAccountId = data.creditAccountId
+    if (data.offBalanceDebitAccountId) entryData.offBalanceDebitAccountId = data.offBalanceDebitAccountId
+    if (data.offBalanceCreditAccountId) entryData.offBalanceCreditAccountId = data.offBalanceCreditAccountId
+    if (data.classificationId) entryData.classificationId = data.classificationId
+    if (data.description) entryData.description = data.description
+
     return prisma.journalEntry.create({
-      data: {
-        operationId,
-        debitAccountId: data.debitAccountId,
-        creditAccountId: data.creditAccountId,
-        amount: data.amount,
-        offBalanceDebitAccountId: data.offBalanceDebitAccountId,
-        offBalanceCreditAccountId: data.offBalanceCreditAccountId,
-        classificationId: data.classificationId,
-        description: data.description,
-      },
+      data: entryData,
       include: {
         debitAccount: true,
         creditAccount: true,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   type SortingState,
   type VisibilityState,
@@ -33,7 +33,7 @@ import { BudgetClassification, Journal } from '@/types/auth'
 import { useAuthStore } from '@/store/auth'
 import { budgetClassificationService } from '@/services/budget-classification'
 import { journalService } from '@/services/journals'
-import { classificationColumns as columns } from './classification-columns'
+import { classificationColumns as columns, dzialNames, rozdzialNames } from './classification-columns'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useClassification } from './classification-provider'
 
@@ -124,6 +124,23 @@ export function ClassificationTable({ search, navigate }: DataTableProps) {
     loadClassifications()
   }, [currentUnit, selectedJournalId, journalsLoaded])
 
+  // Generate filter options from data
+  const dzialFilterOptions = useMemo(() => {
+    const uniqueDzialy = [...new Set(data.map((c) => c.dzial))].sort()
+    return uniqueDzialy.map((dzial) => ({
+      label: `${dzial} - ${dzialNames[dzial] || 'Nieznany'}`,
+      value: dzial,
+    }))
+  }, [data])
+
+  const rozdzialFilterOptions = useMemo(() => {
+    const uniqueRozdzialy = [...new Set(data.map((c) => c.rozdzial))].sort()
+    return uniqueRozdzialy.map((rozdzial) => ({
+      label: `${rozdzial} - ${rozdzialNames[rozdzial] || 'Nieznany'}`,
+      value: rozdzial,
+    }))
+  }, [data])
+
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -197,6 +214,16 @@ export function ClassificationTable({ search, navigate }: DataTableProps) {
         searchPlaceholder='Szukaj klasyfikacji...'
         searchKey='name'
         filters={[
+          {
+            columnId: 'dzial',
+            title: 'Dział',
+            options: dzialFilterOptions,
+          },
+          {
+            columnId: 'rozdzial',
+            title: 'Rozdział',
+            options: rozdzialFilterOptions,
+          },
           {
             columnId: 'type',
             title: 'Typ',

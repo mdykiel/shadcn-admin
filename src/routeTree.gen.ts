@@ -27,6 +27,8 @@ import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedUnitsIndexRouteImport } from './routes/_authenticated/units/index'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedRolesIndexRouteImport } from './routes/_authenticated/roles/index'
+import { Route as AuthenticatedPlansIndexRouteImport } from './routes/_authenticated/plans/index'
 import { Route as AuthenticatedOperationsIndexRouteImport } from './routes/_authenticated/operations/index'
 import { Route as AuthenticatedJournalsIndexRouteImport } from './routes/_authenticated/journals/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
@@ -134,6 +136,16 @@ const AuthenticatedSettingsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedRolesIndexRoute = AuthenticatedRolesIndexRouteImport.update({
+  id: '/roles/',
+  path: '/roles/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPlansIndexRoute = AuthenticatedPlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedOperationsIndexRoute =
   AuthenticatedOperationsIndexRouteImport.update({
     id: '/operations/',
@@ -244,6 +256,8 @@ export interface FileRoutesByFullPath {
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/journals': typeof AuthenticatedJournalsIndexRoute
   '/operations': typeof AuthenticatedOperationsIndexRoute
+  '/plans': typeof AuthenticatedPlansIndexRoute
+  '/roles': typeof AuthenticatedRolesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/units': typeof AuthenticatedUnitsIndexRoute
@@ -276,6 +290,8 @@ export interface FileRoutesByTo {
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/journals': typeof AuthenticatedJournalsIndexRoute
   '/operations': typeof AuthenticatedOperationsIndexRoute
+  '/plans': typeof AuthenticatedPlansIndexRoute
+  '/roles': typeof AuthenticatedRolesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/units': typeof AuthenticatedUnitsIndexRoute
@@ -311,6 +327,8 @@ export interface FileRoutesById {
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/journals/': typeof AuthenticatedJournalsIndexRoute
   '/_authenticated/operations/': typeof AuthenticatedOperationsIndexRoute
+  '/_authenticated/plans/': typeof AuthenticatedPlansIndexRoute
+  '/_authenticated/roles/': typeof AuthenticatedRolesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/units/': typeof AuthenticatedUnitsIndexRoute
@@ -346,6 +364,8 @@ export interface FileRouteTypes {
     | '/help-center'
     | '/journals'
     | '/operations'
+    | '/plans'
+    | '/roles'
     | '/settings/'
     | '/tasks'
     | '/units'
@@ -378,6 +398,8 @@ export interface FileRouteTypes {
     | '/help-center'
     | '/journals'
     | '/operations'
+    | '/plans'
+    | '/roles'
     | '/settings'
     | '/tasks'
     | '/units'
@@ -412,6 +434,8 @@ export interface FileRouteTypes {
     | '/_authenticated/help-center/'
     | '/_authenticated/journals/'
     | '/_authenticated/operations/'
+    | '/_authenticated/plans/'
+    | '/_authenticated/roles/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/units/'
@@ -560,6 +584,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/roles/': {
+      id: '/_authenticated/roles/'
+      path: '/roles'
+      fullPath: '/roles'
+      preLoaderRoute: typeof AuthenticatedRolesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plans/': {
+      id: '/_authenticated/plans/'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof AuthenticatedPlansIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/operations/': {
       id: '/_authenticated/operations/'
@@ -713,6 +751,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedJournalsIndexRoute: typeof AuthenticatedJournalsIndexRoute
   AuthenticatedOperationsIndexRoute: typeof AuthenticatedOperationsIndexRoute
+  AuthenticatedPlansIndexRoute: typeof AuthenticatedPlansIndexRoute
+  AuthenticatedRolesIndexRoute: typeof AuthenticatedRolesIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUnitsIndexRoute: typeof AuthenticatedUnitsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
@@ -731,6 +771,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedJournalsIndexRoute: AuthenticatedJournalsIndexRoute,
   AuthenticatedOperationsIndexRoute: AuthenticatedOperationsIndexRoute,
+  AuthenticatedPlansIndexRoute: AuthenticatedPlansIndexRoute,
+  AuthenticatedRolesIndexRoute: AuthenticatedRolesIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUnitsIndexRoute: AuthenticatedUnitsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,

@@ -1,12 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
-import { showSubmittedData } from '@/lib/show-submitted-data'
+import { AlertTriangle, Loader2 } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { useAuthStore } from '@/stores/auth-store'
+import { usersService } from '@/services/users'
 import { type User } from '../data/schema'
 
 type UserDeleteDialogProps = {
@@ -21,60 +24,72 @@ export function UsersDeleteDialog({
   currentRow,
 }: UserDeleteDialogProps) {
   const [value, setValue] = useState('')
+  const { currentUnit } = useAuthStore()
+  const queryClient = useQueryClient()
+
+  const deleteMutation = useMutation({
+    mutationFn: () => usersService.removeFromUnit(currentUnit!.id, currentRow.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', currentUnit?.id] })
+      toast.success('Użytkownik został usunięty z jednostki')
+      setValue('')
+      onOpenChange(false)
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Błąd podczas usuwania użytkownika')
+    },
+  })
 
   const handleDelete = () => {
-    if (value.trim() !== currentRow.username) return
-
-    onOpenChange(false)
-    showSubmittedData(currentRow, 'The following user has been deleted:')
+    if (value.trim() !== currentRow.email) return
+    deleteMutation.mutate()
   }
 
   return (
     <ConfirmDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(state) => {
+        if (!state) setValue('')
+        onOpenChange(state)
+      }}
       handleConfirm={handleDelete}
-      disabled={value.trim() !== currentRow.username}
+      disabled={value.trim() !== currentRow.email || deleteMutation.isPending}
       title={
         <span className='text-destructive'>
           <AlertTriangle
             className='stroke-destructive me-1 inline-block'
             size={18}
           />{' '}
-          Delete User
+          Usuń użytkownika
         </span>
       }
       desc={
         <div className='space-y-4'>
           <p className='mb-2'>
-            Are you sure you want to delete{' '}
-            <span className='font-bold'>{currentRow.username}</span>?
+            Czy na pewno chcesz usunąć użytkownika{' '}
+            <span className='font-bold'>{currentRow.name}</span>?
             <br />
-            This action will permanently remove the user with the role of{' '}
-            <span className='font-bold'>
-              {currentRow.role.toUpperCase()}
-            </span>{' '}
-            from the system. This cannot be undone.
+            Ta akcja usunie użytkownika z jednostki. Nie będzie miał dostępu do danych tej jednostki.
           </p>
 
           <Label className='my-2'>
-            Username:
+            Wpisz email użytkownika aby potwierdzić:
             <Input
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder='Enter username to confirm deletion.'
+              placeholder={currentRow.email}
             />
           </Label>
 
           <Alert variant='destructive'>
-            <AlertTitle>Warning!</AlertTitle>
+            <AlertTitle>Uwaga!</AlertTitle>
             <AlertDescription>
-              Please be careful, this operation can not be rolled back.
+              Użytkownik straci dostęp do tej jednostki budżetowej.
             </AlertDescription>
           </Alert>
         </div>
       }
-      confirmText='Delete'
+      confirmText={deleteMutation.isPending ? <><Loader2 className='mr-2 h-4 w-4 animate-spin' /> Usuwanie...</> : 'Usuń'}
       destructive
     />
   )

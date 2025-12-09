@@ -32,6 +32,7 @@ import {
   Calendar,
   Archive,
   CalendarRange,
+  Shield,
 } from 'lucide-react'
 import { ClerkLogo } from '@/assets/clerk-logo'
 import { type SidebarData } from '../types'
@@ -85,9 +86,14 @@ export const sidebarData: SidebarData = {
           icon: MessagesSquare,
         },
         {
-          title: 'Users',
+          title: 'Użytkownicy',
           url: '/users',
           icon: Users,
+        },
+        {
+          title: 'Role i uprawnienia',
+          url: '/roles',
+          icon: Shield,
         },
         {
           title: 'Secured by Clerk',
